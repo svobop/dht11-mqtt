@@ -1,3 +1,4 @@
+import os
 import time
 import board
 import adafruit_dht
@@ -5,11 +6,25 @@ import logging
 import paho.mqtt.client as mqtt
 import json
 
-# Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Initial the dht device, with data pin connected to:
-dhtDevice = adafruit_dht.DHT11(board.D4)
+# --- Configuration ---
+# Read credentials from environment variables
+MQTT_BROKER = os.environ.get('MQTT_BROKER')
+MQTT_PORT = int(os.environ.get('MQTT_PORT', 1883))
+MQTT_USER = os.environ.get('MQTT_USER')
+MQTT_PASS = os.environ.get('MQTT_PASSWORD')
+SENSOR_TOPIC = os.environ.get('MQTT_TOPIC', "raspberrypi/dht11")
+SLEEP_INTERVAL = int(os.environ.get('SLEEP_INTERVAL', 60))
+
+# Check that all required variables are set
+if not all([MQTT_BROKER, MQTT_USER, MQTT_PASS]):
+    raise EnvironmentError("Error: MQTT_BROKER, MQTT_USER, and MQTT_PASSWORD environment variables must be set.")
+
+# --- Sensor Setup ---
+# Initialize your DHT11 sensor (adjust for your library)
+# Example for adafruit_dht:
+dhtDevice = adafruit_dht.DHT11(board.D4) # Assumes connected to GPIO 4
 
 
 def get_average_reading(num_readings=5):
@@ -50,27 +65,43 @@ def get_average_reading(num_readings=5):
     else:
         return None, None
 
+# The callback for when the client receives a CONNACK response from the server.
+def on_connect(client, userdata, flags, reason_code, properties):
+    print(f"Connected with result code {reason_code}")
+    # Subscribing in on_connect() means that if we lose the connection and
+    # reconnect then subscriptions will be renewed.
+    client.subscribe("$SYS/#")
+
+# The callback for when a PUBLISH message is received from the server.
+def on_message(client, userdata, msg):
+    print(msg.topic+" "+str(msg.payload))
+
 
 if __name__ == "__main__":
-    temperature, humidity = get_average_reading()
 
-    if temperature is not None and humidity is not None:
-        logging.info(
-            f"Avg Temp: {temperature:.1f} C    Avg Humidity: {humidity:.1f}% "
-        )
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    client.username_pw_set(MQTT_USER, MQTT_PASS)
+    client.on_connect = on_connect
+    client.on_message = on_message
+    client.connect(MQTT_BROKER, 1883, 60)
+    client.loop_start()
 
-        client = mqtt.Client()
-        client.connect("homeassistant", 1883, 60)  # Connect to the broker
+    logging.info("Starting sensor loop...")
+    while True:
+        temperature, humidity = get_average_reading()
 
-        # Send temperature
-        client.publish("home/livingroom/temperature", temperature)
-        # Send humidity
-        client.publish("home/livingroom/humidity", humidity)
+        if temperature is not None and humidity is not None:
+            logging.info(
+                f"Avg Temp: {temperature:.1f} C    Avg Humidity: {humidity:.1f}% "
+            )
 
-        # Or send both as a single JSON payload (often better)
-        payload = json.dumps({"temperature": temperature, "humidity": humidity})
-        client.publish("home/livingroom/dht11", payload)
+            payload = json.dumps({"temperature": temperature, "humidity": humidity})
+            client.publish("raspberrypi/dht11", payload)
+        else:
+            logging.warning("Failed to get average readings.")
 
-        client.disconnect()
-    else:
-        logging.warning("Failed to get average readings.")
+        time.sleep(SLEEP_INTERVAL)
+
+    # Stop the MQTT loop
+    client.loop_stop()
+    print("Exiting.")
