@@ -6,5 +6,6 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "adafruit-circuitpython-dht>=4.0.10",
+    "paho-mqtt>=2.1.0",
     "rpi-gpio>=0.7.1",
 ]
