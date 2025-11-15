@@ -2,6 +2,8 @@ import time
 import board
 import adafruit_dht
 import logging
+import paho.mqtt.client as mqtt
+import json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -49,14 +51,26 @@ def get_average_reading(num_readings=5):
         return None, None
 
 
-while True:
-    avg_temperature, avg_humidity = get_average_reading()
+if __name__ == "__main__":
+    temperature, humidity = get_average_reading()
 
-    if avg_temperature is not None and avg_humidity is not None:
+    if temperature is not None and humidity is not None:
         logging.info(
-            f"Avg Temp: {avg_temperature:.1f} C    Avg Humidity: {avg_humidity:.1f}% "
+            f"Avg Temp: {temperature:.1f} C    Avg Humidity: {humidity:.1f}% "
         )
+
+        client = mqtt.Client()
+        client.connect("homeassistant", 1883, 60)  # Connect to the broker
+
+        # Send temperature
+        client.publish("home/livingroom/temperature", temperature)
+        # Send humidity
+        client.publish("home/livingroom/humidity", humidity)
+
+        # Or send both as a single JSON payload (often better)
+        payload = json.dumps({"temperature": temperature, "humidity": humidity})
+        client.publish("home/livingroom/dht11", payload)
+
+        client.disconnect()
     else:
         logging.warning("Failed to get average readings.")
-
-    time.sleep(2.0)
