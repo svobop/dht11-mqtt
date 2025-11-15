@@ -1,0 +1,10 @@
+[project]
+name = "dht11"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "adafruit-circuitpython-dht>=4.0.10",
+    "rpi-gpio>=0.7.1",
+]
