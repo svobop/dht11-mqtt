@@ -1,0 +1,23 @@
+[Unit]
+Description=DHT11 to MQTT Publishing Service
+After=network.target
+
+[Service]
+# --- User and Paths ---
+User=pi
+WorkingDirectory=/home/pi/dht11
+ExecStart=/home/pi/.local/bin/uv run /home/pi/dht11/main.py
+
+# --- Environment Variables ---
+Environment="MQTT_BROKER=homeassistant"
+Environment="MQTT_USER="
+Environment="MQTT_PASSWORD="
+Environment="MQTT_TOPIC=raspberrypi/dht11"
+Environment="SLEEP_INTERVAL=60"
+
+# --- Process Management ---
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
