@@ -12,7 +12,7 @@ ExecStart=/home/pi/.local/bin/uv run /home/pi/dht11/main.py
 Environment="MQTT_BROKER=homeassistant"
 Environment="MQTT_USER="
 Environment="MQTT_PASSWORD="
-Environment="MQTT_TOPIC=raspberrypi/dht11"
+Environment="DEVICE_ID=01rpa"
 Environment="SLEEP_INTERVAL=60"
 
 # --- Process Management ---

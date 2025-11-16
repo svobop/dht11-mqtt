@@ -16,12 +16,12 @@ MQTT_USER = os.environ.get('MQTT_USER')
 MQTT_PASS = os.environ.get('MQTT_PASSWORD')
 SLEEP_INTERVAL = int(os.environ.get('SLEEP_INTERVAL', 60))
 DEVICE_NAME = os.environ.get('DEVICE_NAME', "RaspberryPi DHT11")
-DEVICE_ID = DEVICE_NAME.replace(" ", "_").lower()  # Create a unique device ID
+DEVICE_ID = os.environ.get('DEVICE_ID')
 SENSOR_TOPIC = os.environ.get('MQTT_TOPIC', f"homeassistant/sensor/{DEVICE_ID}")
 
 # Check that all required variables are set
-if not all([MQTT_BROKER, MQTT_USER, MQTT_PASS]):
-    raise EnvironmentError("Error: MQTT_BROKER, MQTT_USER, and MQTT_PASSWORD environment variables must be set.")
+if not all([MQTT_BROKER, MQTT_USER, MQTT_PASS, DEVICE_ID]):
+    raise EnvironmentError("Error: MQTT_BROKER, MQTT_USER, MQTT_PASSWORD, and DEVICE_ID environment variables must be set.")
 
 # --- Sensor Setup ---
 # Initialize your DHT11 sensor (adjust for your library)
@@ -41,6 +41,7 @@ def get_average_reading(num_readings=30):
     """
     temperatures = []
     humidities = []
+    runtime_errors = 0
 
     for _ in range(num_readings):
         try:
@@ -54,11 +55,15 @@ def get_average_reading(num_readings=30):
             # Errors happen fairly often, DHT's are hard to read, just keep going
             logging.error(error.args[0])
             time.sleep(2.0)
+            runtime_errors += 1
             continue
         except Exception as error:
             dhtDevice.exit()
             logging.exception("An unexpected error occurred:")
             raise error
+
+    logging.info(f"Encountered {runtime_errors} runtime errors during reading.")
+    logging.info(f"Collected {len(temperatures)} values, sqrt(n) factor: {len(temperatures)**.5}")
 
     if temperatures and humidities:
         # round to half degree for temps
@@ -86,7 +91,7 @@ def config_home_assistant(client):
     """Publishes MQTT discovery messages for Home Assistant."""
 
     device_config = {
-        "identifiers": [DEVICE_ID],
+        "identifiers": [f"frame{DEVICE_ID}"],
         "name": DEVICE_NAME,
         "manufacturer": "Generic",
         "model": "DHT11 Sensor",
@@ -95,8 +100,7 @@ def config_home_assistant(client):
     # Temperature sensor configuration
     temp_config = {
         "device": device_config,
-        "name": f"{DEVICE_NAME} Temperature",
-        "unique_id": f"{DEVICE_ID}_temperature",
+        "unique_id": f"temp{DEVICE_ID}",
         "state_topic": f"{SENSOR_TOPIC}/state",
         "value_template": "{{ value_json.temperature }}",
         "unit_of_measurement": "°C",
@@ -109,8 +113,7 @@ def config_home_assistant(client):
     # Humidity sensor configuration
     humidity_config = {
         "device": device_config,
-        "name": f"{DEVICE_NAME} Humidity",
-        "unique_id": f"{DEVICE_ID}_humidity",
+        "unique_id": f"hum{DEVICE_ID}",
         "state_topic": f"{SENSOR_TOPIC}/state",
         "value_template": "{{ value_json.humidity }}",
         "unit_of_measurement": "%",
