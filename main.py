@@ -96,7 +96,7 @@ def config_home_assistant(client):
     temp_config = {
         "device": device_config,
         "name": f"{DEVICE_NAME} Temperature",
-        "unique_id": f"{DEVICE_ID}_temperature",
+        "unique_id": f"{DEVICE_ID}_001_temperature",
         "state_topic": f"{SENSOR_TOPIC}/state",
         "value_template": "{{ value_json.temperature }}",
         "unit_of_measurement": "°C",
@@ -111,7 +111,7 @@ def config_home_assistant(client):
     humidity_config = {
         "device": device_config,
         "name": f"{DEVICE_NAME} Humidity",
-        "unique_id": f"{DEVICE_ID}_humidity",
+        "unique_id": f"{DEVICE_ID}_001_humidity",
         "state_topic": f"{SENSOR_TOPIC}/state",
         "value_template": "{{ value_json.humidity }}",
         "unit_of_measurement": "%",
