@@ -14,10 +14,10 @@ MQTT_BROKER = os.environ.get('MQTT_BROKER')
 MQTT_PORT = int(os.environ.get('MQTT_PORT', 1883))
 MQTT_USER = os.environ.get('MQTT_USER')
 MQTT_PASS = os.environ.get('MQTT_PASSWORD')
-SENSOR_TOPIC = os.environ.get('MQTT_TOPIC', "raspberrypi/dht11")
 SLEEP_INTERVAL = int(os.environ.get('SLEEP_INTERVAL', 60))
 DEVICE_NAME = os.environ.get('DEVICE_NAME', "RaspberryPi DHT11")
 DEVICE_ID = DEVICE_NAME.replace(" ", "_").lower()  # Create a unique device ID
+SENSOR_TOPIC = os.environ.get('MQTT_TOPIC', f"homeassistant/sensor/{DEVICE_ID}")
 
 # Check that all required variables are set
 if not all([MQTT_BROKER, MQTT_USER, MQTT_PASS]):
@@ -97,7 +97,7 @@ def config_home_assistant(client):
         "device": device_config,
         "name": f"{DEVICE_NAME} Temperature",
         "unique_id": f"{DEVICE_ID}_temperature",
-        "state_topic": SENSOR_TOPIC,
+        "state_topic": f"{SENSOR_TOPIC}/state",
         "value_template": "{{ value_json.temperature }}",
         "unit_of_measurement": "°C",
         "device_class": "temperature",
@@ -105,14 +105,14 @@ def config_home_assistant(client):
         "payload_available": "online",
         "payload_not_available": "offline",
     }
-    temp_config_topic = f"homeassistant/sensor/{DEVICE_ID}/temperature/config"
+    temp_config_topic = f"{SENSOR_TOPIC}_t/config"
 
     # Humidity sensor configuration
     humidity_config = {
         "device": device_config,
         "name": f"{DEVICE_NAME} Humidity",
         "unique_id": f"{DEVICE_ID}_humidity",
-        "state_topic": SENSOR_TOPIC,
+        "state_topic": f"{SENSOR_TOPIC}/state",
         "value_template": "{{ value_json.humidity }}",
         "unit_of_measurement": "%",
         "device_class": "humidity",
@@ -120,7 +120,7 @@ def config_home_assistant(client):
         "payload_available": "online",
         "payload_not_available": "offline",
     }
-    humidity_config_topic = f"homeassistant/sensor/{DEVICE_ID}/humidity/config"
+    humidity_config_topic = f"{SENSOR_TOPIC}_h/config"
 
     client.publish(temp_config_topic, json.dumps(temp_config), retain=True)
     client.publish(humidity_config_topic, json.dumps(humidity_config), retain=True)
@@ -149,7 +149,7 @@ if __name__ == "__main__":
             )
 
             payload = json.dumps({"temperature": temperature, "humidity": humidity})
-            client.publish(SENSOR_TOPIC, payload)
+            client.publish(f"{SENSOR_TOPIC}/state", payload)
         else:
             logging.warning("Failed to get average readings.")
 
