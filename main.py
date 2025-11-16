@@ -16,6 +16,8 @@ MQTT_USER = os.environ.get('MQTT_USER')
 MQTT_PASS = os.environ.get('MQTT_PASSWORD')
 SENSOR_TOPIC = os.environ.get('MQTT_TOPIC', "raspberrypi/dht11")
 SLEEP_INTERVAL = int(os.environ.get('SLEEP_INTERVAL', 60))
+DEVICE_NAME = os.environ.get('DEVICE_NAME', "RaspberryPi DHT11")
+DEVICE_ID = DEVICE_NAME.replace(" ", "_").lower()  # Create a unique device ID
 
 # Check that all required variables are set
 if not all([MQTT_BROKER, MQTT_USER, MQTT_PASS]):
@@ -24,15 +26,15 @@ if not all([MQTT_BROKER, MQTT_USER, MQTT_PASS]):
 # --- Sensor Setup ---
 # Initialize your DHT11 sensor (adjust for your library)
 # Example for adafruit_dht:
-dhtDevice = adafruit_dht.DHT11(board.D4) # Assumes connected to GPIO 4
+dhtDevice = adafruit_dht.DHT11(board.D4)  # Assumes connected to GPIO 4
 
 
-def get_average_reading(num_readings=5):
+def get_average_reading(num_readings=30):
     """
     Gets an average temperature and humidity reading from the DHT sensor.
 
     Args:
-        num_readings (int): The number of readings to take for averaging.  Defaults to 5.
+        num_readings (int): The number of readings to take for averaging.  Defaults to 30.
 
     Returns:
         tuple: A tuple containing the average temperature and humidity.  Returns (None, None) on error.
@@ -47,7 +49,7 @@ def get_average_reading(num_readings=5):
             if temperature is not None and humidity is not None:
                 temperatures.append(temperature)
                 humidities.append(humidity)
-            time.sleep(0.5)  # Short delay between readings
+            time.sleep(1.0)  # Short delay between readings
         except RuntimeError as error:
             # Errors happen fairly often, DHT's are hard to read, just keep going
             logging.error(error.args[0])
@@ -59,22 +61,70 @@ def get_average_reading(num_readings=5):
             raise error
 
     if temperatures and humidities:
-        avg_temperature = sum(temperatures) / len(temperatures)
-        avg_humidity = sum(humidities) / len(humidities)
+        # round to half degree for temps
+        avg_temperature = round(round(sum(temperatures) / len(temperatures) * 2) / 2, 1)
+        avg_humidity = round(sum(humidities) / len(humidities))
         return avg_temperature, avg_humidity
     else:
         return None, None
 
+
 # The callback for when the client receives a CONNACK response from the server.
 def on_connect(client, userdata, flags, reason_code, properties):
-    print(f"Connected with result code {reason_code}")
+    logging.info(f"Connected with result code {reason_code}")
     # Subscribing in on_connect() means that if we lose the connection and
     # reconnect then subscriptions will be renewed.
     client.subscribe("$SYS/#")
 
+
 # The callback for when a PUBLISH message is received from the server.
 def on_message(client, userdata, msg):
-    print(msg.topic+" "+str(msg.payload))
+    logging.info(msg.topic + " " + str(msg.payload))
+
+
+def config_home_assistant(client):
+    """Publishes MQTT discovery messages for Home Assistant."""
+
+    device_config = {
+        "identifiers": [DEVICE_ID],
+        "name": DEVICE_NAME,
+        "manufacturer": "Generic",
+        "model": "DHT11 Sensor",
+    }
+
+    # Temperature sensor configuration
+    temp_config = {
+        "device": device_config,
+        "name": f"{DEVICE_NAME} Temperature",
+        "unique_id": f"{DEVICE_ID}_temperature",
+        "state_topic": SENSOR_TOPIC,
+        "value_template": "{{ value_json.temperature }}",
+        "unit_of_measurement": "°C",
+        "device_class": "temperature",
+        "availability_topic": "telemetry/sensor/availability",
+        "payload_available": "online",
+        "payload_not_available": "offline",
+    }
+    temp_config_topic = f"homeassistant/sensor/{DEVICE_ID}/temperature/config"
+
+    # Humidity sensor configuration
+    humidity_config = {
+        "device": device_config,
+        "name": f"{DEVICE_NAME} Humidity",
+        "unique_id": f"{DEVICE_ID}_humidity",
+        "state_topic": SENSOR_TOPIC,
+        "value_template": "{{ value_json.humidity }}",
+        "unit_of_measurement": "%",
+        "device_class": "humidity",
+        "availability_topic": "telemetry/sensor/availability",
+        "payload_available": "online",
+        "payload_not_available": "offline",
+    }
+    humidity_config_topic = f"homeassistant/sensor/{DEVICE_ID}/humidity/config"
+
+    client.publish(temp_config_topic, json.dumps(temp_config), retain=True)
+    client.publish(humidity_config_topic, json.dumps(humidity_config), retain=True)
+    logging.info("Published Home Assistant MQTT discovery messages.")
 
 
 if __name__ == "__main__":
@@ -83,20 +133,23 @@ if __name__ == "__main__":
     client.username_pw_set(MQTT_USER, MQTT_PASS)
     client.on_connect = on_connect
     client.on_message = on_message
-    client.connect(MQTT_BROKER, 1883, 60)
-    client.loop_start()
+    client.connect(MQTT_BROKER, MQTT_PORT, 60)
+
+    # Configure Home Assistant
+    config_home_assistant(client)
 
     logging.info("Starting sensor loop...")
+    client.loop_start()
     while True:
         temperature, humidity = get_average_reading()
 
         if temperature is not None and humidity is not None:
             logging.info(
-                f"Avg Temp: {temperature:.1f} C    Avg Humidity: {humidity:.1f}% "
+                f"Avg Temp: {temperature} C    Avg Humidity: {humidity}% "
             )
 
             payload = json.dumps({"temperature": temperature, "humidity": humidity})
-            client.publish("raspberrypi/dht11", payload)
+            client.publish(SENSOR_TOPIC, payload)
         else:
             logging.warning("Failed to get average readings.")
 
