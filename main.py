@@ -6,7 +6,7 @@ import logging
 import paho.mqtt.client as mqtt
 import json
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
 
 # --- Configuration ---
 # Read credentials from environment variables
