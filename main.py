@@ -104,6 +104,7 @@ def config_home_assistant(client):
         "availability_topic": f"{SENSOR_TOPIC}/availability",
     }
     temp_config_topic = f"{SENSOR_TOPIC}_temperature/config"
+    logging.info(json.dumps(temp_config, indent=4))
 
     # Humidity sensor configuration
     humidity_config = {
@@ -117,6 +118,7 @@ def config_home_assistant(client):
         "availability_topic": f"{SENSOR_TOPIC}/availability",
     }
     humidity_config_topic = f"{SENSOR_TOPIC}_humidity/config"
+    logging.info(json.dumps(humidity_config, indent=4))
 
     client.publish(temp_config_topic, json.dumps(temp_config), retain=True)
     client.publish(humidity_config_topic, json.dumps(humidity_config), retain=True)
@@ -127,8 +129,8 @@ if __name__ == "__main__":
 
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     client.username_pw_set(MQTT_USER, MQTT_PASS)
-    client.on_connect = on_connect
-    client.on_message = on_message
+    # client.on_connect = on_connect
+    # client.on_message = on_message
     client.connect(MQTT_BROKER, MQTT_PORT, 60)
 
     # Configure Home Assistant
