@@ -96,31 +96,27 @@ def config_home_assistant(client):
     temp_config = {
         "device": device_config,
         "name": f"{DEVICE_NAME} Temperature",
-        "unique_id": f"{DEVICE_ID}_001_temperature",
+        "unique_id": f"{DEVICE_ID}_temperature",
         "state_topic": f"{SENSOR_TOPIC}/state",
         "value_template": "{{ value_json.temperature }}",
         "unit_of_measurement": "°C",
         "device_class": "temperature",
-        "availability_topic": "telemetry/sensor/availability",
-        "payload_available": "online",
-        "payload_not_available": "offline",
+        "availability_topic": f"{SENSOR_TOPIC}/availability",
     }
-    temp_config_topic = f"{SENSOR_TOPIC}_t/config"
+    temp_config_topic = f"{SENSOR_TOPIC}_temperature/config"
 
     # Humidity sensor configuration
     humidity_config = {
         "device": device_config,
         "name": f"{DEVICE_NAME} Humidity",
-        "unique_id": f"{DEVICE_ID}_001_humidity",
+        "unique_id": f"{DEVICE_ID}_humidity",
         "state_topic": f"{SENSOR_TOPIC}/state",
         "value_template": "{{ value_json.humidity }}",
         "unit_of_measurement": "%",
         "device_class": "humidity",
-        "availability_topic": "telemetry/sensor/availability",
-        "payload_available": "online",
-        "payload_not_available": "offline",
+        "availability_topic": f"{SENSOR_TOPIC}/availability",
     }
-    humidity_config_topic = f"{SENSOR_TOPIC}_h/config"
+    humidity_config_topic = f"{SENSOR_TOPIC}_humidity/config"
 
     client.publish(temp_config_topic, json.dumps(temp_config), retain=True)
     client.publish(humidity_config_topic, json.dumps(humidity_config), retain=True)
@@ -140,21 +136,32 @@ if __name__ == "__main__":
 
     logging.info("Starting sensor loop...")
     client.loop_start()
-    while True:
-        temperature, humidity = get_average_reading()
 
-        if temperature is not None and humidity is not None:
-            logging.info(
-                f"Avg Temp: {temperature} C    Avg Humidity: {humidity}% "
-            )
+    # Send an availability payload.
+    client.publish(f"{SENSOR_TOPIC}/availability", "online", retain=True)
 
-            payload = json.dumps({"temperature": temperature, "humidity": humidity})
-            client.publish(f"{SENSOR_TOPIC}/state", payload)
-        else:
-            logging.warning("Failed to get average readings.")
+    try:
+        while True:
+            temperature, humidity = get_average_reading()
 
-        time.sleep(SLEEP_INTERVAL)
+            if temperature is not None and humidity is not None:
+                logging.info(
+                    f"Avg Temp: {temperature} C    Avg Humidity: {humidity}% "
+                )
 
-    # Stop the MQTT loop
-    client.loop_stop()
-    print("Exiting.")
+                payload = json.dumps({"temperature": temperature, "humidity": humidity})
+                client.publish(f"{SENSOR_TOPIC}/state", payload)
+            else:
+                logging.warning("Failed to get average readings.")
+
+            time.sleep(SLEEP_INTERVAL)
+
+    except KeyboardInterrupt:
+        logging.info("Received shutdown signal")
+    finally:
+        # Send an availability payload.
+        client.publish(f"{SENSOR_TOPIC}/availability", "offline", retain=True)
+
+        # Stop the MQTT loop
+        client.loop_stop()
+        logging.info("Exiting...")
